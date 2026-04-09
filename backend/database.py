@@ -29,6 +29,9 @@ async def init_db(db: aiosqlite.Connection) -> None:
             summary         TEXT
         )
     """)
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_meetings_user_id ON meetings(user_id)"
+    )
     await db.commit()
 
 async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
