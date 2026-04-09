@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import RedirectResponse
 import aiosqlite
 from backend.database import get_db
@@ -37,7 +37,7 @@ async def login(credentials: UserLogin, db: aiosqlite.Connection = Depends(get_d
     return Token(access_token=token)
 
 @router.get("/me", response_model=UserOut)
-async def me(token: str, db: aiosqlite.Connection = Depends(get_db)):
+async def me(token: str = Query(...), db: aiosqlite.Connection = Depends(get_db)):
     from backend.auth import decode_token
     payload = decode_token(token)
     if not payload:
