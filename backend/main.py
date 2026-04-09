@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+from starlette.middleware.sessions import SessionMiddleware
 from backend.database import init_db, DATABASE_URL
 from backend.routers.auth_router import router as auth_router
 
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Live Translator", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-secret"))
 app.include_router(auth_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
