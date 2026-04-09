@@ -10,7 +10,7 @@ openai==1.40.0
 reportlab==4.2.2
 psutil==6.0.0
 python-dotenv==1.0.1
-pydantic>=2.8.2
+pydantic[email]==2.8.2
 pytest==8.3.2
 pytest-asyncio==0.23.8
 faster-whisper==1.0.3
