@@ -46,19 +46,19 @@ def transcribe_and_translate(
     speaker: str,
     on_result: Callable[[str, str, str], None],
 ) -> None:
-    """
-    Transcreve e traduz um chunk de áudio.
-    Chama on_result(speaker, original, translation) quando pronto.
-    """
+    print(f"[Transcriber] Processando {len(audio_bytes)} bytes speaker={speaker} lang={source_lang}")
     path = save_audio_chunk(audio_bytes)
     try:
         model = get_model()
         segments, _ = model.transcribe(path, language=source_lang)
         original = " ".join(s.text for s in segments).strip()
+        print(f"[Transcriber] Resultado: '{original}'")
         if not original:
             return
         translation = translate_text(original, source_lang, target_lang)
         on_result(speaker, original, translation)
+    except Exception as e:
+        print(f"[Transcriber] ERRO: {e}")
     finally:
         try:
             os.unlink(path)

@@ -33,16 +33,20 @@ async def index():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):
+    print(f"[WS] Nova conexão recebida")
     payload = decode_token(token)
     if not payload:
+        print("[WS] Token inválido, fechando")
         await websocket.close(code=4001)
         return
     user_id = int(payload["sub"])
-    loop = asyncio.get_event_loop()
+    print(f"[WS] user_id={user_id} conectado")
+    loop = asyncio.get_running_loop()
     await websocket.accept()
     try:
         while True:
             data = await websocket.receive_json()
+            print(f"[WS] Mensagem recebida: {data}")
             if data.get("action") == "start":
                 async with aiosqlite.connect(DATABASE_URL) as db:
                     db.row_factory = aiosqlite.Row

@@ -4,6 +4,7 @@ const state = {
   user: null,
   ws: null,
   transcriptions: [],
+  stopping: false,
 };
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
@@ -82,12 +83,32 @@ function logout() {
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
+function setWsStatus(msg, color) {
+  const el = document.getElementById("ws-status");
+  if (el) { el.textContent = msg; el.style.color = color || "#aaa"; }
+}
+
 function connectWS(onMessage) {
   if (state.ws) state.ws.close();
-  state.ws = new WebSocket(`ws://localhost:8000/ws?token=${state.token}`);
+  const wsHost = window.location.host;
+  state.ws = new WebSocket(`ws://${wsHost}/ws?token=${state.token}`);
+  setWsStatus("🔌 Conectando ao servidor...", "#aaa");
+  state.ws.onopen = () => {
+    setWsStatus("✅ Conectado — iniciando áudio...", "#00ff88");
+    if (state.myLang && !state.audioOn) {
+      state.ws.send(JSON.stringify({ action: "start", my_language: state.myLang, other_language: state.otherLang }));
+      state.audioOn = true;
+      const btn = document.getElementById("btn-audio");
+      if (btn) { btn.textContent = "🔴 Áudio ligado"; btn.style.background = "#e94560"; btn.style.color = "white"; }
+      setWsStatus("🎤 Gravando — fale agora!", "#00ff88");
+    }
+  };
   state.ws.onmessage = e => onMessage(JSON.parse(e.data));
-  state.ws.onclose = () => setTimeout(() => connectWS(onMessage), 3000); // reconnect
-  state.ws.onerror = () => state.ws.close();
+  state.ws.onclose = () => {
+    setWsStatus("🔴 Desconectado", "#e94560");
+    if (!state.stopping) setTimeout(() => connectWS(onMessage), 3000);
+  };
+  state.ws.onerror = () => { setWsStatus("❌ Erro na conexão", "#e94560"); state.ws.close(); };
 }
 
 // ── Gravação ──────────────────────────────────────────────────────────────────
@@ -95,17 +116,32 @@ function connectWS(onMessage) {
 function startRecording() {
   const myLang = document.getElementById("my-lang").value;
   const otherLang = document.getElementById("other-lang").value;
+  state.myLang = myLang;
+  state.otherLang = otherLang;
   document.getElementById("langs-display").textContent = `${myLang} ↔ ${otherLang}`;
   document.getElementById("live-caption").textContent = "Aguardando fala...";
   document.getElementById("live-translation").textContent = "";
   document.getElementById("transcript-box").innerHTML = "";
   state.transcriptions = [];
+  state.audioOn = false;
+  const btn = document.getElementById("btn-audio");
+  if (btn) btn.textContent = "🎤 Ligar Áudio";
   showScreen("recording");
-
   connectWS(onWsMessage);
-  state.ws.onopen = () => {
-    state.ws.send(JSON.stringify({ action: "start", my_language: myLang, other_language: otherLang }));
-  };
+}
+
+function toggleAudio() {
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    setWsStatus("❌ WebSocket não conectado", "#e94560");
+    return;
+  }
+  if (!state.audioOn) {
+    state.ws.send(JSON.stringify({ action: "start", my_language: state.myLang, other_language: state.otherLang }));
+    state.audioOn = true;
+    const btn = document.getElementById("btn-audio");
+    if (btn) { btn.textContent = "🔴 Áudio ligado"; btn.style.background = "#e94560"; btn.style.color = "white"; }
+    setWsStatus("🎤 Gravando — fale agora", "#00ff88");
+  }
 }
 
 function onWsMessage(data) {
@@ -127,9 +163,15 @@ function onWsMessage(data) {
 }
 
 async function stopRecording() {
-  if (state.ws) state.ws.send(JSON.stringify({ action: "stop" }));
+  state.stopping = true;
   const res = await fetch(`/meetings/end?token=${state.token}`, { method: "POST" });
-  if (!res.ok) { alert("Erro ao salvar reunião."); return; }
+  if (!res.ok) {
+    state.stopping = false;
+    alert("Erro ao salvar reunião.");
+    return;
+  }
+  // Fecha WS após salvar (não reconecta)
+  if (state.ws) { state.ws.close(); state.ws = null; }
   const data = await res.json();
 
   const filesEl = document.getElementById("saved-files");
@@ -139,6 +181,7 @@ async function stopRecording() {
     (data.pdf ? `<div>📄 reuniao.pdf</div>` : "");
 
   document.getElementById("summary-text").textContent = data.summary || "Resumo indisponível.";
+  state.stopping = false;
   showScreen("end");
 }
 
@@ -151,6 +194,7 @@ function requestSummary() {
 }
 
 function newMeeting() {
+  state.stopping = false;
   showScreen("waiting");
 }
 

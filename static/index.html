@@ -113,6 +113,7 @@
   </div>
 
   <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;max-width:700px;margin:auto;width:100%">
+    <div id="ws-status" style="font-size:12px;padding:6px 10px;border-radius:6px;background:#1a1a2e;color:#aaa;margin-bottom:4px">🔌 Conectando...</div>
     <div class="live-caption" id="live-caption">Aguardando fala...</div>
     <div class="live-translation" id="live-translation"></div>
 
@@ -121,7 +122,8 @@
       <div class="transcript-box" id="transcript-box"></div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:auto">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:auto">
+      <button class="btn btn-success" id="btn-audio" onclick="toggleAudio()">🎤 Ligar Áudio</button>
       <button class="btn btn-primary" onclick="stopRecording()">⏹ Parar</button>
       <button class="btn btn-secondary" onclick="downloadPDF()">📄 PDF</button>
       <button class="btn btn-outline" onclick="requestSummary()">🤖 Resumo</button>
@@ -148,6 +150,6 @@
   </div>
 </div>
 
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=2"></script>
 </body>
 </html>
