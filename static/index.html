@@ -1,5 +1,153 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="UTF-8"><title>Live Translator</title></head>
-<body><h1>Live Translator</h1></body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Translator</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- TELA 1: LOGIN -->
+<div id="screen-login" class="screen active">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="card" style="width:100%;max-width:380px">
+      <h1 style="font-size:20px;margin-bottom:4px">🌐 Live Translator</h1>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Acesso da equipe</p>
+
+      <div id="login-error" style="display:none;background:#1a0010;border-radius:8px;padding:10px;color:var(--red);font-size:13px;margin-bottom:16px"></div>
+
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="seu@email.com">
+      </div>
+      <div class="input-group">
+        <label>Senha</label>
+        <input type="password" id="login-password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="doLogin()">Entrar</button>
+
+      <div class="divider">ou</div>
+
+      <button class="btn btn-outline" style="width:100%;margin-bottom:16px" onclick="window.location='/auth/google'">
+        <span style="font-weight:700;color:white">G</span>&nbsp; Entrar com Google
+      </button>
+
+      <p style="text-align:center;font-size:12px;color:var(--dim)">
+        Sem conta? <a href="#" style="color:var(--red)" onclick="showRegister()">Criar conta</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- TELA 2: AGUARDANDO -->
+<div id="screen-waiting" class="screen">
+  <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a1a2e">
+    <span style="font-size:15px;font-weight:700">🌐 Live Translator</span>
+    <div style="display:flex;gap:12px;align-items:center">
+      <span id="user-name" style="font-size:13px;color:var(--muted)"></span>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div style="width:100%;max-width:460px">
+      <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <span class="badge badge-active">● ativo</span>
+        <span style="font-size:13px;color:var(--muted)">Monitorando reuniões</span>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">APPS MONITORADOS</p>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <span style="font-size:13px">📹 Zoom</span>
+          <span style="font-size:13px">👥 Teams</span>
+          <span style="font-size:13px">🎥 Google Meet</span>
+          <span style="font-size:13px">💬 Webex</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">IDIOMAS</p>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:4px">MEU IDIOMA</label>
+            <select id="my-lang" class="input-group" style="background:var(--bg-panel);border:1px solid #2a2a3e;border-radius:6px;padding:8px;color:white;width:100%">
+              <option value="pt">🇧🇷 Português</option>
+              <option value="en">🇺🇸 Inglês</option>
+              <option value="es">🇪🇸 Espanhol</option>
+              <option value="fr">🇫🇷 Francês</option>
+              <option value="de">🇩🇪 Alemão</option>
+            </select>
+          </div>
+          <span style="font-size:20px;color:var(--purple);padding-top:16px">⇄</span>
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:4px">IDIOMA DA REUNIÃO</label>
+            <select id="other-lang" style="background:var(--bg-panel);border:1px solid #2a2a3e;border-radius:6px;padding:8px;color:white;width:100%">
+              <option value="en">🇺🇸 Inglês</option>
+              <option value="pt">🇧🇷 Português</option>
+              <option value="es">🇪🇸 Espanhol</option>
+              <option value="fr">🇫🇷 Francês</option>
+              <option value="de">🇩🇪 Alemão</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px" onclick="startRecording()">
+        ▶ Iniciar manualmente
+      </button>
+      <p style="text-align:center;font-size:12px;color:var(--dim);margin-top:10px">ou use Ctrl+Shift+T</p>
+    </div>
+  </div>
+</div>
+
+<!-- TELA 3: GRAVANDO -->
+<div id="screen-recording" class="screen">
+  <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a1a2e">
+    <span style="font-size:15px;font-weight:700">🌐 Live Translator</span>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span id="langs-display" style="font-size:12px;color:var(--muted)">pt → en</span>
+      <span class="badge badge-live">🔴 AO VIVO</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;max-width:700px;margin:auto;width:100%">
+    <div class="live-caption" id="live-caption">Aguardando fala...</div>
+    <div class="live-translation" id="live-translation"></div>
+
+    <div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">TRANSCRIÇÃO</p>
+      <div class="transcript-box" id="transcript-box"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:auto">
+      <button class="btn btn-primary" onclick="stopRecording()">⏹ Parar</button>
+      <button class="btn btn-secondary" onclick="downloadPDF()">📄 PDF</button>
+      <button class="btn btn-outline" onclick="requestSummary()">🤖 Resumo</button>
+    </div>
+  </div>
+</div>
+
+<!-- TELA 4: FIM -->
+<div id="screen-end" class="screen">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div style="width:100%;max-width:500px">
+      <div class="card" style="margin-bottom:16px">
+        <h2 style="color:var(--green);margin-bottom:16px">✅ Reunião salva!</h2>
+        <div id="saved-files" style="background:var(--bg-panel);border-radius:8px;padding:12px;font-size:13px;color:var(--muted);margin-bottom:16px"></div>
+        <div>
+          <p style="font-size:12px;color:var(--red);margin-bottom:8px">🤖 RESUMO IA</p>
+          <div id="summary-text" style="font-size:13px;color:#ccc;line-height:1.6;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <button class="btn btn-success" style="width:100%;padding:14px" onclick="newMeeting()">
+        Nova reunião
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
 </html>
