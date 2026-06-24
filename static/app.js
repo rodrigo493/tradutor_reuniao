@@ -48,22 +48,44 @@ async function doLogin() {
 }
 
 function showRegister() {
-  const name = prompt("Seu nome:");
-  if (!name) return;
-  const email = prompt("Email:");
-  if (!email) return;
-  const password = prompt("Senha:");
-  if (!password) return;
-  const folder = prompt("Caminho da pasta Google Drive (ex: G:/Meu Drive/Reunioes):", "G:/Meu Drive/Reunioes");
+  hideError("login-error");
+  hideError("register-error");
+  document.getElementById("login-box").style.display = "none";
+  document.getElementById("register-box").style.display = "block";
+}
 
-  fetch("/auth/register", {
+function showLogin() {
+  hideError("login-error");
+  hideError("register-error");
+  document.getElementById("register-box").style.display = "none";
+  document.getElementById("login-box").style.display = "block";
+}
+
+async function doRegister() {
+  hideError("register-error");
+  const name = document.getElementById("reg-name").value.trim();
+  const email = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+  if (!name || !email || !password) {
+    showError("register-error", "Preencha nome, email e senha.");
+    return;
+  }
+  const res = await fetch("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, drive_folder: folder || "" }),
-  }).then(r => r.json()).then(() => {
-    document.getElementById("login-email").value = email;
-    alert("Conta criada! Faça login.");
-  }).catch(() => alert("Erro ao criar conta."));
+    body: JSON.stringify({ name, email, password }),
+  });
+  if (!res.ok) {
+    let detail = "Erro ao criar conta.";
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    showError("register-error", detail);
+    return;
+  }
+  // Sucesso: preenche o login e entra automaticamente
+  document.getElementById("login-email").value = email;
+  document.getElementById("login-password").value = password;
+  showLogin();
+  await doLogin();
 }
 
 async function loadUser() {
