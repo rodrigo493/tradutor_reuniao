@@ -11,6 +11,7 @@ from backend.database import init_db, DATABASE_URL, get_db
 from backend.routers.auth_router import router as auth_router
 from backend.auth import decode_token
 from backend.session import RecordingSession
+from backend.devices import list_devices, find_vbcable
 from backend.storage import get_save_folder, save_transcript_txt, save_pdf, generate_summary
 from openai import OpenAI
 
@@ -30,6 +31,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 async def index():
     return FileResponse("static/index.html")
+
+@app.get("/devices")
+async def devices():
+    data = list_devices()
+    return {
+        "inputs": data["inputs"],
+        "outputs": data["outputs"],
+        "vbcable": find_vbcable(data["outputs"]),
+    }
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):
@@ -52,9 +62,25 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     db.row_factory = aiosqlite.Row
                     cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
                     row = await cursor.fetchone()
-                my_lang = data.get("my_language", row["my_language"] if row else "pt")
                 other_lang = data.get("other_language", row["other_language"] if row else "en")
-                session = RecordingSession(user_id, my_lang, other_lang, websocket, loop)
+                hp = data.get("headphone_index")
+                vb = data.get("vbcable_index")
+                if hp is None or vb is None:
+                    await websocket.send_json({"type": "error", "message": "Selecione os dispositivos (fone e VB-Cable) antes de iniciar."})
+                    continue
+                try:
+                    headphone_index = int(hp)
+                    vbcable_index = int(vb)
+                    mic_index = int(data["mic_index"]) if data.get("mic_index") is not None else None
+                    loopback_index = int(data["loopback_index"]) if data.get("loopback_index") is not None else None
+                except (TypeError, ValueError):
+                    await websocket.send_json({"type": "error", "message": "Índices de dispositivo inválidos."})
+                    continue
+                session = RecordingSession(
+                    user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
+                    headphone_index=headphone_index, vbcable_index=vbcable_index,
+                    mic_index=mic_index, loopback_index=loopback_index,
+                )
                 session.start()
                 active_sessions[user_id] = session
                 await websocket.send_json({"type": "status", "status": "recording"})

@@ -1,3 +1,6 @@
+// Índice do VB-Cable detectado (null = não instalado)
+let vbcableIndex = null;
+
 // Estado da aplicação
 const state = {
   token: localStorage.getItem("token") || null,
@@ -94,14 +97,7 @@ function connectWS(onMessage) {
   state.ws = new WebSocket(`ws://${wsHost}/ws?token=${state.token}`);
   setWsStatus("🔌 Conectando ao servidor...", "#aaa");
   state.ws.onopen = () => {
-    setWsStatus("✅ Conectado — iniciando áudio...", "#00ff88");
-    if (state.myLang && !state.audioOn) {
-      state.ws.send(JSON.stringify({ action: "start", my_language: state.myLang, other_language: state.otherLang }));
-      state.audioOn = true;
-      const btn = document.getElementById("btn-audio");
-      if (btn) { btn.textContent = "🔴 Áudio ligado"; btn.style.background = "#e94560"; btn.style.color = "white"; }
-      setWsStatus("🎤 Gravando — fale agora!", "#00ff88");
-    }
+    setWsStatus("✅ Conectado — aguardando início do áudio...", "#00ff88");
   };
   state.ws.onmessage = e => onMessage(JSON.parse(e.data));
   state.ws.onclose = () => {
@@ -111,22 +107,63 @@ function connectWS(onMessage) {
   state.ws.onerror = () => { setWsStatus("❌ Erro na conexão", "#e94560"); state.ws.close(); };
 }
 
+// ── Dispositivos ──────────────────────────────────────────────────────────────
+
+async function loadDevices() {
+  const res = await fetch('/devices');
+  const data = await res.json();
+  const inputs = data.inputs, outputs = data.outputs;
+
+  const fill = (el, list) => {
+    el.innerHTML = '';
+    list.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.index;
+      opt.textContent = `${d.name}`;
+      el.appendChild(opt);
+    });
+  };
+  fill(document.getElementById('sel-headphone'), outputs);
+  fill(document.getElementById('sel-mic'), inputs);
+  fill(document.getElementById('sel-loopback'), inputs);
+
+  const status = document.getElementById('vbcable-status');
+  if (data.vbcable) {
+    vbcableIndex = data.vbcable.index;
+    status.textContent = `✅ VB-Cable detectado: ${data.vbcable.name}`;
+    status.className = 'vbcable-status ok';
+  } else {
+    vbcableIndex = null;
+    status.textContent = '⚠️ VB-Cable não encontrado. O outbound (sua voz traduzida) não funcionará até instalá-lo.';
+    status.className = 'vbcable-status warn';
+  }
+}
+
 // ── Gravação ──────────────────────────────────────────────────────────────────
 
-function startRecording() {
-  const myLang = document.getElementById("my-lang").value;
-  const otherLang = document.getElementById("other-lang").value;
-  state.myLang = myLang;
-  state.otherLang = otherLang;
-  document.getElementById("langs-display").textContent = `${myLang} ↔ ${otherLang}`;
+async function startRecording() {
+  showScreen("recording");
+  await loadDevices();
+
+  const headphoneSel = document.getElementById("sel-headphone");
+  const micSel = document.getElementById("sel-mic");
+  const loopbackSel = document.getElementById("sel-loopback");
+  if (!headphoneSel.value || !micSel.value || !loopbackSel.value) {
+    alert("Nenhum dispositivo de áudio encontrado. Verifique as conexões e tente novamente.");
+    showScreen("waiting");
+    return;
+  }
+
+  const otherLang = document.getElementById("sel-other-lang").value;
+  document.getElementById("langs-display").textContent = `pt ↔ ${otherLang}`;
   document.getElementById("live-caption").textContent = "Aguardando fala...";
   document.getElementById("live-translation").textContent = "";
-  document.getElementById("transcript-box").innerHTML = "";
+  document.getElementById("col-other").innerHTML = "";
+  document.getElementById("col-you").innerHTML = "";
   state.transcriptions = [];
   state.audioOn = false;
   const btn = document.getElementById("btn-audio");
   if (btn) btn.textContent = "🎤 Ligar Áudio";
-  showScreen("recording");
   connectWS(onWsMessage);
 }
 
@@ -136,7 +173,18 @@ function toggleAudio() {
     return;
   }
   if (!state.audioOn) {
-    state.ws.send(JSON.stringify({ action: "start", my_language: state.myLang, other_language: state.otherLang }));
+    if (vbcableIndex === null) {
+      alert('Instale o VB-Cable antes de iniciar (necessário para enviar sua voz traduzida).');
+      return;
+    }
+    state.ws.send(JSON.stringify({
+      action: 'start',
+      other_language: document.getElementById('sel-other-lang').value,
+      headphone_index: parseInt(document.getElementById('sel-headphone').value, 10),
+      vbcable_index: vbcableIndex,
+      mic_index: parseInt(document.getElementById('sel-mic').value, 10),
+      loopback_index: parseInt(document.getElementById('sel-loopback').value, 10),
+    }));
     state.audioOn = true;
     const btn = document.getElementById("btn-audio");
     if (btn) { btn.textContent = "🔴 Áudio ligado"; btn.style.background = "#e94560"; btn.style.color = "white"; }
@@ -151,13 +199,33 @@ function onWsMessage(data) {
     document.getElementById("live-translation").textContent =
       data.original !== data.translation ? `↳ ${data.original}` : "";
 
-    const box = document.getElementById("transcript-box");
-    const cls = data.speaker === "Você" ? "entry-you" : "entry-other";
-    box.innerHTML += `<div class="${cls}"><b>[${data.timestamp}] ${data.speaker}:</b> ${data.original}</div>`;
-    if (data.original !== data.translation) {
-      box.innerHTML += `<div class="entry-translation">↳ ${data.translation}</div>`;
-    }
-    box.scrollTop = box.scrollHeight;
+    const isOther = data.speaker === 'Outro';
+    const col = isOther
+      ? document.getElementById('col-other')
+      : document.getElementById('col-you');
+
+    const div = document.createElement('div');
+    div.className = 'line';
+
+    const tSpan = document.createElement('span');
+    tSpan.className = 't';
+    const langTag = isOther && data.detected_lang ? ` [${data.detected_lang}]` : '';
+    tSpan.textContent = (data.timestamp || '') + langTag;
+
+    const origSpan = document.createElement('span');
+    origSpan.className = 'orig';
+    origSpan.textContent = data.original || '';
+
+    const tradSpan = document.createElement('span');
+    tradSpan.className = 'trad';
+    tradSpan.textContent = data.translation || '';
+
+    div.appendChild(tSpan);
+    div.appendChild(origSpan);
+    div.appendChild(tradSpan);
+    col.appendChild(div);
+    col.scrollTop = col.scrollHeight;
+
     state.transcriptions.push(data);
   }
 }
