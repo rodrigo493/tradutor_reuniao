@@ -114,12 +114,35 @@
 
   <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;max-width:700px;margin:auto;width:100%">
     <div id="ws-status" style="font-size:12px;padding:6px 10px;border-radius:6px;background:#1a1a2e;color:#aaa;margin-bottom:4px">🔌 Conectando...</div>
+
+    <section id="device-config" class="device-config">
+      <label>Seu fone (saída em PT):
+        <select id="sel-headphone"></select>
+      </label>
+      <label>Microfone (sua voz):
+        <select id="sel-mic"></select>
+      </label>
+      <label>Loopback (voz da outra pessoa):
+        <select id="sel-loopback"></select>
+      </label>
+      <label>Idioma da outra pessoa:
+        <select id="sel-other-lang">
+          <option value="en">Inglês</option>
+          <option value="es">Espanhol</option>
+          <option value="fr">Francês</option>
+          <option value="de">Alemão</option>
+          <option value="it">Italiano</option>
+        </select>
+      </label>
+      <p id="vbcable-status" class="vbcable-status"></p>
+    </section>
+
     <div class="live-caption" id="live-caption">Aguardando fala...</div>
     <div class="live-translation" id="live-translation"></div>
 
-    <div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">TRANSCRIÇÃO</p>
-      <div class="transcript-box" id="transcript-box"></div>
+    <div class="console">
+      <div class="column"><h3>Outra pessoa</h3><div id="col-other" class="lines"></div></div>
+      <div class="column"><h3>Você</h3><div id="col-you" class="lines"></div></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:auto">

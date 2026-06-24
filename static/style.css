@@ -88,6 +88,27 @@ body {
 .transcript-box .entry-other { color: #888; }
 .transcript-box .entry-translation { color: var(--dim); padding-left: 16px; }
 
+/* Device config panel */
+.device-config { display: grid; gap: 8px; margin-bottom: 16px; }
+.device-config label { display: flex; flex-direction: column; font-size: 14px; gap: 4px; }
+.device-config select {
+  background: var(--bg-panel); border: 1px solid #2a2a3e;
+  border-radius: 6px; padding: 8px; color: var(--text); font-size: 13px;
+}
+.vbcable-status { font-size: 13px; margin-top: 4px; }
+.vbcable-status.ok { color: #4caf50; }
+.vbcable-status.warn { color: #ff9800; }
+
+/* Two-column live console */
+.console { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.column { background: #1b1b1f; border-radius: 12px; padding: 12px; }
+.column h3 { font-size: 13px; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+.lines { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.line { display: flex; flex-direction: column; gap: 2px; padding: 8px; background: #232329; border-radius: 8px; }
+.line .t { font-size: 11px; opacity: .6; }
+.line .orig { font-size: 13px; opacity: .8; }
+.line .trad { font-size: 15px; font-weight: 600; }
+
 /* Divider */
 .divider {
   display: flex; align-items: center; gap: 12px;
