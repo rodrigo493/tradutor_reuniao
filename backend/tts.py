@@ -3,6 +3,8 @@ import tempfile
 import os
 import threading
 import edge_tts
+import pyaudiowpatch as pyaudio
+from backend.audio_output import mp3_to_pcm, play_pcm_to_device
 
 VOICE_MAP = {
     "pt": "pt-BR-FranciscaNeural",
@@ -51,3 +53,40 @@ def speak_text(text: str, lang: str):
         finally:
             loop.close()
     threading.Thread(target=_run, daemon=True).start()
+
+
+async def synthesize_to_mp3_bytes(text: str, lang: str) -> bytes:
+    """Sintetiza texto e retorna o mp3 em memória (sem tocar)."""
+    voice = get_voice(lang)
+    communicate = edge_tts.Communicate(text, voice)
+    buf = bytearray()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.extend(chunk["data"])
+    return bytes(buf)
+
+
+def _device_format(device_index: int) -> tuple[int, int]:
+    """Retorna (rate, channels) nativos do dispositivo de saída."""
+    pa = pyaudio.PyAudio()
+    try:
+        d = pa.get_device_info_by_index(device_index)
+        rate = int(d["defaultSampleRate"])
+        channels = 2 if int(d["maxOutputChannels"]) >= 2 else 1
+        return rate, channels
+    finally:
+        pa.terminate()
+
+
+def speak_to_device(text: str, lang: str, device_index: int) -> None:
+    """Sintetiza e toca o texto (bloqueante) no dispositivo indicado."""
+    if not text.strip():
+        return
+    loop = asyncio.new_event_loop()
+    try:
+        mp3 = loop.run_until_complete(synthesize_to_mp3_bytes(text, lang))
+    finally:
+        loop.close()
+    rate, channels = _device_format(device_index)
+    pcm = mp3_to_pcm(mp3, rate=rate, channels=channels)
+    play_pcm_to_device(pcm, device_index, rate, channels)
