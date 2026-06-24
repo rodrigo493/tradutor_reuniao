@@ -11,11 +11,14 @@ RATE = 16000
 CHUNK_BYTES = RATE * 2 * 3  # 3 segundos de áudio
 
 class AudioCapture:
-    def __init__(self):
+    def __init__(self, mic_index: int | None = None, loopback_index: int | None = None):
         self.mic_queue: queue.Queue = queue.Queue()
         self.spk_queue: queue.Queue = queue.Queue()
         self._running = False
         self._threads: list[threading.Thread] = []
+        self.mic_index = mic_index
+        self.loopback_index = loopback_index
+        self.loopback_paused = False
 
     def start(self):
         self._running = True
@@ -31,11 +34,18 @@ class AudioCapture:
         self.mic_queue.put(None)
         self.spk_queue.put(None)
 
+    def pause_loopback(self):
+        self.loopback_paused = True
+
+    def resume_loopback(self):
+        self.loopback_paused = False
+
     def _capture_mic(self):
         pa = pyaudio.PyAudio()
         try:
             stream = pa.open(format=pyaudio.paInt16, channels=1, rate=RATE,
-                             input=True, frames_per_buffer=CHUNK)
+                             input=True, frames_per_buffer=CHUNK,
+                             input_device_index=self.mic_index)
             print("[Audio] Microfone iniciado")
             count = 0
             while self._running:
@@ -55,7 +65,10 @@ class AudioCapture:
         import numpy as np
         pa = pyaudio.PyAudio()
         try:
-            device = pa.get_default_wasapi_loopback()
+            if self.loopback_index is not None:
+                device = pa.get_device_info_by_index(self.loopback_index)
+            else:
+                device = pa.get_default_wasapi_loopback()
             native_rate = int(device["defaultSampleRate"])  # geralmente 48000
             native_channels = max(1, int(device["maxInputChannels"]))
             # Ajusta chunk para o rate nativo
@@ -76,6 +89,8 @@ class AudioCapture:
                     n_out = max(1, int(len(arr) * ratio))
                     indices = np.linspace(0, len(arr) - 1, n_out)
                     arr = np.interp(indices, np.arange(len(arr)), arr).astype(np.int16)
+                if self.loopback_paused:
+                    continue
                 self.spk_queue.put(arr.tobytes())
             stream.stop_stream()
             stream.close()
