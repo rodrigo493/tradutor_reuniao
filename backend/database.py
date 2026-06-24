@@ -2,9 +2,6 @@ import os
 from typing import AsyncGenerator, Optional
 import asyncpg
 
-# Legacy SQLite path — kept for backward compat until main.py migrates
-DATABASE_URL = "db.sqlite3"
-
 _pool: Optional[asyncpg.Pool] = None
 
 

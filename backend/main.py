@@ -1,13 +1,13 @@
 import os
 import asyncio
-import aiosqlite
+import asyncpg
 from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from starlette.middleware.sessions import SessionMiddleware
-from backend.database import init_db, DATABASE_URL, get_db
+from backend.database import connect_pool, close_pool, get_pool, init_db, get_db
 from backend.routers.auth_router import router as auth_router
 from backend.auth import decode_token
 from backend.session import RecordingSession
@@ -19,9 +19,11 @@ active_sessions: Dict[int, RecordingSession] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with aiosqlite.connect(DATABASE_URL) as db:
-        await init_db(db)
+    await connect_pool()
+    async with get_pool().acquire() as conn:
+        await init_db(conn)
     yield
+    await close_pool()
 
 app = FastAPI(title="Live Translator", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "dev-secret"))
@@ -58,10 +60,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             data = await websocket.receive_json()
             print(f"[WS] Mensagem recebida: {data}")
             if data.get("action") == "start":
-                async with aiosqlite.connect(DATABASE_URL) as db:
-                    db.row_factory = aiosqlite.Row
-                    cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-                    row = await cursor.fetchone()
+                async with get_pool().acquire() as conn:
+                    row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                 other_lang = data.get("other_language", row["other_language"] if row else "en")
                 hp = data.get("headphone_index")
                 vb = data.get("vbcable_index")
@@ -94,7 +94,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             active_sessions.pop(user_id).stop()
 
 @app.post("/meetings/end")
-async def end_meeting(token: str, db: aiosqlite.Connection = Depends(get_db)):
+async def end_meeting(token: str, db: asyncpg.Connection = Depends(get_db)):
     payload = decode_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Token inválido")
@@ -106,8 +106,7 @@ async def end_meeting(token: str, db: aiosqlite.Connection = Depends(get_db)):
     session = active_sessions.pop(user_id)
     transcriptions = session.stop()
 
-    cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = await cursor.fetchone()
+    row = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
 
     timestamp = session.started_at.strftime("%Y%m%d_%H%M")
     drive_folder = row["drive_folder"] or os.path.expanduser("~/Desktop/Reunioes")
@@ -120,10 +119,9 @@ async def end_meeting(token: str, db: aiosqlite.Connection = Depends(get_db)):
     pdf_path = save_pdf(folder, transcriptions, summary, session.started_at.strftime("%d/%m/%Y %H:%M"))
 
     await db.execute(
-        "INSERT INTO meetings (user_id, started_at, ended_at, transcript_path, pdf_path, summary) "
-        "VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)",
-        (user_id, session.started_at.isoformat(), txt_path, pdf_path, summary)
+        "INSERT INTO conversations (user_id, started_at, ended_at, transcript_path, pdf_path, summary) "
+        "VALUES ($1, $2, now(), $3, $4, $5)",
+        user_id, session.started_at, txt_path, pdf_path, summary,
     )
-    await db.commit()
 
     return {"folder": folder, "txt": txt_path, "pdf": pdf_path, "summary": summary}
