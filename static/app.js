@@ -141,12 +141,21 @@ async function loadDevices() {
 
 // ── Gravação ──────────────────────────────────────────────────────────────────
 
-function startRecording() {
-  const myLang = document.getElementById("my-lang").value;
-  const otherLang = document.getElementById("other-lang").value;
-  state.myLang = myLang;
-  state.otherLang = otherLang;
-  document.getElementById("langs-display").textContent = `${myLang} ↔ ${otherLang}`;
+async function startRecording() {
+  showScreen("recording");
+  await loadDevices();
+
+  const headphoneSel = document.getElementById("sel-headphone");
+  const micSel = document.getElementById("sel-mic");
+  const loopbackSel = document.getElementById("sel-loopback");
+  if (!headphoneSel.value || !micSel.value || !loopbackSel.value) {
+    alert("Nenhum dispositivo de áudio encontrado. Verifique as conexões e tente novamente.");
+    showScreen("waiting");
+    return;
+  }
+
+  const otherLang = document.getElementById("sel-other-lang").value;
+  document.getElementById("langs-display").textContent = `pt ↔ ${otherLang}`;
   document.getElementById("live-caption").textContent = "Aguardando fala...";
   document.getElementById("live-translation").textContent = "";
   document.getElementById("col-other").innerHTML = "";
@@ -155,8 +164,6 @@ function startRecording() {
   state.audioOn = false;
   const btn = document.getElementById("btn-audio");
   if (btn) btn.textContent = "🎤 Ligar Áudio";
-  showScreen("recording");
-  loadDevices();
   connectWS(onWsMessage);
 }
 

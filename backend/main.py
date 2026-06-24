@@ -63,15 +63,23 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
                     row = await cursor.fetchone()
                 other_lang = data.get("other_language", row["other_language"] if row else "en")
-                headphone_index = int(data["headphone_index"])
-                vbcable_index = int(data["vbcable_index"])
-                mic_index = data.get("mic_index")
-                loopback_index = data.get("loopback_index")
+                hp = data.get("headphone_index")
+                vb = data.get("vbcable_index")
+                if hp is None or vb is None:
+                    await websocket.send_json({"type": "error", "message": "Selecione os dispositivos (fone e VB-Cable) antes de iniciar."})
+                    continue
+                try:
+                    headphone_index = int(hp)
+                    vbcable_index = int(vb)
+                    mic_index = int(data["mic_index"]) if data.get("mic_index") is not None else None
+                    loopback_index = int(data["loopback_index"]) if data.get("loopback_index") is not None else None
+                except (TypeError, ValueError):
+                    await websocket.send_json({"type": "error", "message": "Índices de dispositivo inválidos."})
+                    continue
                 session = RecordingSession(
                     user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
                     headphone_index=headphone_index, vbcable_index=vbcable_index,
-                    mic_index=int(mic_index) if mic_index is not None else None,
-                    loopback_index=int(loopback_index) if loopback_index is not None else None,
+                    mic_index=mic_index, loopback_index=loopback_index,
                 )
                 session.start()
                 active_sessions[user_id] = session

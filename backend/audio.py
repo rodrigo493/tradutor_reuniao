@@ -1,6 +1,7 @@
 import asyncio
 import queue
 import threading
+import time
 import wave
 import tempfile
 import os
@@ -19,6 +20,7 @@ class AudioCapture:
         self.mic_index = mic_index
         self.loopback_index = loopback_index
         self.loopback_paused = False
+        self._discard_until = 0.0
 
     def start(self):
         self._running = True
@@ -36,9 +38,17 @@ class AudioCapture:
 
     def pause_loopback(self):
         self.loopback_paused = True
+        # Drain already-buffered audio so stale frames don't leak through
+        while True:
+            try:
+                self.spk_queue.get_nowait()
+            except queue.Empty:
+                break
 
     def resume_loopback(self):
         self.loopback_paused = False
+        # Discard stream tail for 400 ms after resuming to flush device buffer
+        self._discard_until = time.monotonic() + 0.4
 
     def _capture_mic(self):
         pa = pyaudio.PyAudio()
@@ -89,7 +99,7 @@ class AudioCapture:
                     n_out = max(1, int(len(arr) * ratio))
                     indices = np.linspace(0, len(arr) - 1, n_out)
                     arr = np.interp(indices, np.arange(len(arr)), arr).astype(np.int16)
-                if self.loopback_paused:
+                if self.loopback_paused or time.monotonic() < self._discard_until:
                     continue
                 self.spk_queue.put(arr.tobytes())
             stream.stop_stream()

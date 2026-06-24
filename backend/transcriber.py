@@ -1,3 +1,4 @@
+import concurrent.futures
 import os
 import time
 import threading
@@ -88,6 +89,7 @@ class AudioWorker:
         self.detect = detect
         self.drop_langs = drop_langs
         self._thread: Optional[threading.Thread] = None
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def start(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -103,10 +105,9 @@ class AudioWorker:
             if len(buffer) >= CHUNK_BYTES:
                 data = buffer
                 buffer = b""
-                threading.Thread(
-                    target=transcribe_and_translate,
-                    args=(data, self.source_lang, self.target_lang,
-                          self.speaker, self.on_result),
-                    kwargs={"detect": self.detect, "drop_langs": self.drop_langs},
-                    daemon=True,
-                ).start()
+                self._executor.submit(
+                    transcribe_and_translate, data, self.source_lang,
+                    self.target_lang, self.speaker, self.on_result,
+                    self.detect, self.drop_langs,
+                )
+        self._executor.shutdown(wait=False)
