@@ -17,7 +17,7 @@ def get_model() -> WhisperModel:
     global _model
     with _model_lock:
         if _model is None:
-            model_size = os.getenv("WHISPER_MODEL", "tiny")
+            model_size = os.getenv("WHISPER_MODEL", "base")
             for attempt in range(5):
                 try:
                     _model = WhisperModel(model_size, device="cpu", compute_type="int8")
@@ -44,19 +44,27 @@ def transcribe_and_translate(
     source_lang: str,
     target_lang: str,
     speaker: str,
-    on_result: Callable[[str, str, str], None],
+    on_result: Callable[[str, str, str, str], None],
+    detect: bool = False,
+    drop_langs: tuple = (),
 ) -> None:
-    print(f"[Transcriber] Processando {len(audio_bytes)} bytes speaker={speaker} lang={source_lang}")
+    print(f"[Transcriber] {len(audio_bytes)} bytes speaker={speaker} detect={detect}")
     path = save_audio_chunk(audio_bytes)
     try:
         model = get_model()
-        segments, _ = model.transcribe(path, language=source_lang)
+        lang_arg = None if detect else source_lang
+        segments, info = model.transcribe(path, language=lang_arg)
+        detected = getattr(info, "language", source_lang) or source_lang
+        if detected in drop_langs:
+            print(f"[Transcriber] descartado (idioma {detected} em drop_langs)")
+            return
         original = " ".join(s.text for s in segments).strip()
-        print(f"[Transcriber] Resultado: '{original}'")
+        print(f"[Transcriber] [{detected}] '{original}'")
         if not original:
             return
-        translation = translate_text(original, source_lang, target_lang)
-        on_result(speaker, original, translation)
+        effective_source = detected if detect else source_lang
+        translation = translate_text(original, effective_source, target_lang)
+        on_result(speaker, original, translation, detected)
     except Exception as e:
         print(f"[Transcriber] ERRO: {e}")
     finally:
@@ -70,12 +78,15 @@ class AudioWorker:
     """Consome fila de chunks de áudio e aciona transcrição em threads."""
 
     def __init__(self, queue, source_lang: str, target_lang: str,
-                 speaker: str, on_result: Callable):
+                 speaker: str, on_result: Callable,
+                 detect: bool = False, drop_langs: tuple = ()):
         self.queue = queue
         self.source_lang = source_lang
         self.target_lang = target_lang
         self.speaker = speaker
         self.on_result = on_result
+        self.detect = detect
+        self.drop_langs = drop_langs
         self._thread: Optional[threading.Thread] = None
 
     def start(self):
@@ -96,5 +107,6 @@ class AudioWorker:
                     target=transcribe_and_translate,
                     args=(data, self.source_lang, self.target_lang,
                           self.speaker, self.on_result),
-                    daemon=True
+                    kwargs={"detect": self.detect, "drop_langs": self.drop_langs},
+                    daemon=True,
                 ).start()
