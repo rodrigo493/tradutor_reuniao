@@ -107,6 +107,8 @@ async def end_meeting(token: str, db: asyncpg.Connection = Depends(get_db)):
     transcriptions = session.stop()
 
     row = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     timestamp = session.started_at.strftime("%Y%m%d_%H%M")
     drive_folder = row["drive_folder"] or os.path.expanduser("~/Desktop/Reunioes")
