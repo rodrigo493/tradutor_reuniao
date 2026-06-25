@@ -1,11 +1,14 @@
 from typing import Optional
 import pyaudiowpatch as pyaudio
 
+from backend.audio_lock import PYAUDIO_LOCK
+
 
 def list_devices() -> dict:
     """Lista dispositivos de entrada e saída disponíveis."""
-    pa = pyaudio.PyAudio()
     inputs, outputs = [], []
+    with PYAUDIO_LOCK:
+        pa = pyaudio.PyAudio()
     try:
         for i in range(pa.get_device_count()):
             d = pa.get_device_info_by_index(i)

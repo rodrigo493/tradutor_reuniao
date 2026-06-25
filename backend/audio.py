@@ -6,6 +6,7 @@ import wave
 import tempfile
 import os
 import pyaudiowpatch as pyaudio
+from backend.audio_lock import PYAUDIO_LOCK
 
 CHUNK = 1024
 RATE = 16000
@@ -51,11 +52,13 @@ class AudioCapture:
         self._discard_until = time.monotonic() + 0.4
 
     def _capture_mic(self):
-        pa = pyaudio.PyAudio()
+        pa = None
         try:
-            stream = pa.open(format=pyaudio.paInt16, channels=1, rate=RATE,
-                             input=True, frames_per_buffer=CHUNK,
-                             input_device_index=self.mic_index)
+            with PYAUDIO_LOCK:
+                pa = pyaudio.PyAudio()
+                stream = pa.open(format=pyaudio.paInt16, channels=1, rate=RATE,
+                                 input=True, frames_per_buffer=CHUNK,
+                                 input_device_index=self.mic_index)
             print("[Audio] Microfone iniciado")
             count = 0
             while self._running:
@@ -69,24 +72,27 @@ class AudioCapture:
         except Exception as e:
             print(f"[Audio] Mic ERRO: {e}")
         finally:
-            pa.terminate()
+            if pa is not None:
+                pa.terminate()
 
     def _capture_loopback(self):
         import numpy as np
-        pa = pyaudio.PyAudio()
+        pa = None
         try:
-            if self.loopback_index is not None:
-                device = pa.get_device_info_by_index(self.loopback_index)
-            else:
-                device = pa.get_default_wasapi_loopback()
-            native_rate = int(device["defaultSampleRate"])  # geralmente 48000
-            native_channels = max(1, int(device["maxInputChannels"]))
-            # Ajusta chunk para o rate nativo
-            native_chunk = int(CHUNK * native_rate / RATE)
-            stream = pa.open(format=pyaudio.paInt16, channels=native_channels,
-                             rate=native_rate, input=True,
-                             input_device_index=device["index"],
-                             frames_per_buffer=native_chunk)
+            with PYAUDIO_LOCK:
+                pa = pyaudio.PyAudio()
+                if self.loopback_index is not None:
+                    device = pa.get_device_info_by_index(self.loopback_index)
+                else:
+                    device = pa.get_default_wasapi_loopback()
+                native_rate = int(device["defaultSampleRate"])  # geralmente 48000
+                native_channels = max(1, int(device["maxInputChannels"]))
+                # Ajusta chunk para o rate nativo
+                native_chunk = int(CHUNK * native_rate / RATE)
+                stream = pa.open(format=pyaudio.paInt16, channels=native_channels,
+                                 rate=native_rate, input=True,
+                                 input_device_index=device["index"],
+                                 frames_per_buffer=native_chunk)
             ratio = RATE / native_rate
             while self._running:
                 raw = stream.read(native_chunk, exception_on_overflow=False)
@@ -107,7 +113,8 @@ class AudioCapture:
         except Exception as e:
             print(f"Loopback não disponível: {e}")
         finally:
-            pa.terminate()
+            if pa is not None:
+                pa.terminate()
 
 
 def save_audio_chunk(audio_bytes: bytes) -> str:

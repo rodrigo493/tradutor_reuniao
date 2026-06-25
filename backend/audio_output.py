@@ -4,6 +4,8 @@ import logging
 import av  # vem junto com faster-whisper
 import pyaudiowpatch as pyaudio
 
+from backend.audio_lock import PYAUDIO_LOCK
+
 _log = logging.getLogger(__name__)
 
 
@@ -32,8 +34,8 @@ def mp3_to_pcm(mp3: bytes, rate: int, channels: int) -> bytes:
 
 def play_pcm_to_device(pcm: bytes, device_index: int, rate: int, channels: int) -> None:
     """Toca PCM int16 bloqueante no dispositivo de saída indicado."""
-    pa = pyaudio.PyAudio()
-    try:
+    with PYAUDIO_LOCK:
+        pa = pyaudio.PyAudio()
         stream = pa.open(
             format=pyaudio.paInt16,
             channels=channels,
@@ -41,6 +43,7 @@ def play_pcm_to_device(pcm: bytes, device_index: int, rate: int, channels: int) 
             output=True,
             output_device_index=device_index,
         )
+    try:
         try:
             stream.write(pcm)
         finally:

@@ -5,6 +5,7 @@ import threading
 import edge_tts
 import pyaudiowpatch as pyaudio
 from backend.audio_output import mp3_to_pcm, play_pcm_to_device
+from backend.audio_lock import PYAUDIO_LOCK
 
 VOICE_MAP = {
     "pt": "pt-BR-FranciscaNeural",
@@ -68,14 +69,15 @@ async def synthesize_to_mp3_bytes(text: str, lang: str) -> bytes:
 
 def _device_format(device_index: int) -> tuple[int, int]:
     """Retorna (rate, channels) nativos do dispositivo de saída."""
-    pa = pyaudio.PyAudio()
-    try:
-        d = pa.get_device_info_by_index(device_index)
-        rate = int(d["defaultSampleRate"])
-        channels = 2 if int(d["maxOutputChannels"]) >= 2 else 1
-        return rate, channels
-    finally:
-        pa.terminate()
+    with PYAUDIO_LOCK:
+        pa = pyaudio.PyAudio()
+        try:
+            d = pa.get_device_info_by_index(device_index)
+            rate = int(d["defaultSampleRate"])
+            channels = 2 if int(d["maxOutputChannels"]) >= 2 else 1
+            return rate, channels
+        finally:
+            pa.terminate()
 
 
 def speak_to_device(text: str, lang: str, device_index: int) -> None:
