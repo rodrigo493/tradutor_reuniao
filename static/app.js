@@ -137,6 +137,7 @@ async function loadDevices() {
   const inputs = data.inputs, outputs = data.outputs;
 
   const fill = (el, list) => {
+    const prev = el.value;  // preserva a seleção atual no refresh
     el.innerHTML = '';
     list.forEach(d => {
       const opt = document.createElement('option');
@@ -144,6 +145,7 @@ async function loadDevices() {
       opt.textContent = `${d.name}`;
       el.appendChild(opt);
     });
+    if (prev && list.some(d => String(d.index) === prev)) el.value = prev;
   };
   fill(document.getElementById('sel-headphone'), outputs);
   fill(document.getElementById('sel-mic'), inputs);
