@@ -63,22 +63,25 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 async with get_pool().acquire() as conn:
                     row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                 other_lang = data.get("other_language", row["other_language"] if row else "en")
-                hp = data.get("headphone_index")
-                vb = data.get("vbcable_index")
-                if hp is None or vb is None:
-                    await websocket.send_json({"type": "error", "message": "Selecione os dispositivos (fone e VB-Cable) antes de iniciar."})
-                    continue
-                try:
-                    headphone_index = int(hp)
-                    vbcable_index = int(vb)
-                    mic_index = int(data["mic_index"]) if data.get("mic_index") is not None else None
-                    loopback_index = int(data["loopback_index"]) if data.get("loopback_index") is not None else None
-                except (TypeError, ValueError):
-                    await websocket.send_json({"type": "error", "message": "Índices de dispositivo inválidos."})
+                # Resolve nomes -> índices na hora: os índices do PyAudio mudam
+                # quando dispositivos conectam/desconectam, então não dá pra
+                # confiar num índice capturado no carregamento da página.
+                devs = list_devices()
+                out_by_name, in_by_name = {}, {}
+                for d in devs["outputs"]:
+                    out_by_name.setdefault(d["name"], d["index"])
+                for d in devs["inputs"]:
+                    in_by_name.setdefault(d["name"], d["index"])
+                headphone_index = out_by_name.get(data.get("headphone_name"))
+                mic_index = in_by_name.get(data.get("mic_name")) if data.get("mic_name") else None
+                loopback_index = in_by_name.get(data.get("loopback_name")) if data.get("loopback_name") else None
+                vb = find_vbcable(devs["outputs"])
+                if headphone_index is None or vb is None:
+                    await websocket.send_json({"type": "error", "message": "Dispositivo nao encontrado. Clique 'Atualizar dispositivos' e selecione novamente."})
                     continue
                 session = RecordingSession(
                     user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
-                    headphone_index=headphone_index, vbcable_index=vbcable_index,
+                    headphone_index=headphone_index, vbcable_index=vb["index"],
                     mic_index=mic_index, loopback_index=loopback_index,
                 )
                 session.start()

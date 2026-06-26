@@ -113,20 +113,35 @@ function setWsStatus(msg, color) {
   if (el) { el.textContent = msg; el.style.color = color || "#aaa"; }
 }
 
+let wsReconnectTimer = null;
+
 function connectWS(onMessage) {
-  if (state.ws) state.ws.close();
+  // Cancela qualquer reconexão pendente e desarma o socket antigo para evitar
+  // loops de reconexão sobrepostos.
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  if (state.ws) {
+    state.ws.onclose = null;
+    state.ws.onerror = null;
+    try { state.ws.close(); } catch (e) {}
+  }
   const wsHost = window.location.host;
-  state.ws = new WebSocket(`ws://${wsHost}/ws?token=${state.token}`);
+  const ws = new WebSocket(`ws://${wsHost}/ws?token=${state.token}`);
+  state.ws = ws;
   setWsStatus("🔌 Conectando ao servidor...", "#aaa");
-  state.ws.onopen = () => {
+  ws.onopen = () => {
     setWsStatus("✅ Conectado — aguardando início do áudio...", "#00ff88");
   };
-  state.ws.onmessage = e => onMessage(JSON.parse(e.data));
-  state.ws.onclose = () => {
+  ws.onmessage = e => onMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    if (state.ws !== ws) return;  // socket obsoleto: ignora
     setWsStatus("🔴 Desconectado", "#e94560");
-    if (!state.stopping) setTimeout(() => connectWS(onMessage), 3000);
+    if (!state.stopping) wsReconnectTimer = setTimeout(() => connectWS(onMessage), 3000);
   };
-  state.ws.onerror = () => { setWsStatus("❌ Erro na conexão", "#e94560"); state.ws.close(); };
+  ws.onerror = () => {
+    if (state.ws !== ws) return;
+    setWsStatus("❌ Erro na conexão", "#e94560");
+    // onclose dispara em seguida e cuida da reconexão única
+  };
 }
 
 // ── Dispositivos ──────────────────────────────────────────────────────────────
@@ -137,15 +152,18 @@ async function loadDevices() {
   const inputs = data.inputs, outputs = data.outputs;
 
   const fill = (el, list) => {
-    const prev = el.value;  // preserva a seleção atual no refresh
+    const prev = el.value;  // preserva a seleção atual no refresh (por NOME)
     el.innerHTML = '';
+    const seen = new Set();
     list.forEach(d => {
+      if (seen.has(d.name)) return;  // evita nomes duplicados (mesmo device em várias APIs)
+      seen.add(d.name);
       const opt = document.createElement('option');
-      opt.value = d.index;
+      opt.value = d.name;            // nome é estável; índice muda quando devices conectam
       opt.textContent = `${d.name}`;
       el.appendChild(opt);
     });
-    if (prev && list.some(d => String(d.index) === prev)) el.value = prev;
+    if (prev && seen.has(prev)) el.value = prev;
   };
   fill(document.getElementById('sel-headphone'), outputs);
   fill(document.getElementById('sel-mic'), inputs);
@@ -204,10 +222,9 @@ function toggleAudio() {
     state.ws.send(JSON.stringify({
       action: 'start',
       other_language: document.getElementById('sel-other-lang').value,
-      headphone_index: parseInt(document.getElementById('sel-headphone').value, 10),
-      vbcable_index: vbcableIndex,
-      mic_index: parseInt(document.getElementById('sel-mic').value, 10),
-      loopback_index: parseInt(document.getElementById('sel-loopback').value, 10),
+      headphone_name: document.getElementById('sel-headphone').value,
+      mic_name: document.getElementById('sel-mic').value,
+      loopback_name: document.getElementById('sel-loopback').value,
     }));
     state.audioOn = true;
     const btn = document.getElementById("btn-audio");
