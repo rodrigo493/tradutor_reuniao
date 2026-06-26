@@ -11,7 +11,7 @@ from backend.database import connect_pool, close_pool, get_pool, init_db, get_db
 from backend.routers.auth_router import router as auth_router
 from backend.auth import decode_token
 from backend.session import RecordingSession
-from backend.devices import list_devices, find_vbcable
+from backend.devices import list_devices, find_vbcable, index_by_name
 from backend.storage import get_save_folder, save_transcript_txt, save_pdf, generate_summary
 from openai import OpenAI
 
@@ -67,11 +67,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 # quando dispositivos conectam/desconectam, então não dá pra
                 # confiar num índice capturado no carregamento da página.
                 devs = list_devices()
-                out_by_name, in_by_name = {}, {}
-                for d in devs["outputs"]:
-                    out_by_name.setdefault(d["name"], d["index"])
-                for d in devs["inputs"]:
-                    in_by_name.setdefault(d["name"], d["index"])
+                out_by_name = index_by_name(devs["outputs"])
+                in_by_name = index_by_name(devs["inputs"])
                 headphone_index = out_by_name.get(data.get("headphone_name"))
                 mic_index = in_by_name.get(data.get("mic_name")) if data.get("mic_name") else None
                 loopback_index = in_by_name.get(data.get("loopback_name")) if data.get("loopback_name") else None
