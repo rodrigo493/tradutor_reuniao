@@ -90,6 +90,7 @@ class AudioWorker:
         self.drop_langs = drop_langs
         self._thread: Optional[threading.Thread] = None
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._inflight: Optional[concurrent.futures.Future] = None
 
     def start(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -105,9 +106,14 @@ class AudioWorker:
             if len(buffer) >= CHUNK_BYTES:
                 data = buffer
                 buffer = b""
-                self._executor.submit(
+                # Tempo real: se ainda processa o chunk anterior, descarta o
+                # atual em vez de empilhar (evita o delay crescer sem parar).
+                if self._inflight is not None and not self._inflight.done():
+                    continue
+                self._inflight = self._executor.submit(
                     transcribe_and_translate, data, self.source_lang,
                     self.target_lang, self.speaker, self.on_result,
                     self.detect, self.drop_langs,
                 )
-        self._executor.shutdown(wait=False)
+        # Ao parar, cancela qualquer tarefa ainda na fila.
+        self._executor.shutdown(wait=False, cancel_futures=True)

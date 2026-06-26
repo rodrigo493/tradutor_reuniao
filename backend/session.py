@@ -32,6 +32,7 @@ class RecordingSession:
         self.transcriptions: list[dict] = []
         self.started_at = datetime.datetime.now()
         self._workers: list[AudioWorker] = []
+        self._active = True
 
     def _send(self, entry: dict):
         if self.loop is not None:
@@ -41,6 +42,8 @@ class RecordingSession:
 
     def _handle_result(self, speaker: str, original: str,
                        translation: str, detected_lang: str):
+        if not self._active:
+            return  # sessão encerrada: não enviar nem tocar backlog
         entry = {
             "type": "transcription",
             "speaker": speaker,
@@ -82,5 +85,6 @@ class RecordingSession:
         self._workers = [worker_in, worker_out]
 
     def stop(self) -> list[dict]:
+        self._active = False
         self.audio.stop()
         return self.transcriptions
