@@ -14,16 +14,21 @@ class RecordingSession:
 
     def __init__(self, user_id: int, other_lang: str, websocket: WebSocket,
                  loop: Optional[asyncio.AbstractEventLoop],
-                 headphone_index: int, vbcable_index: int,
+                 headphone_index: Optional[int] = None,
+                 vbcable_index: Optional[int] = None,
                  mic_index: Optional[int] = None,
                  loopback_index: Optional[int] = None,
-                 anti_echo: bool = True):
+                 anti_echo: bool = True,
+                 tts_enabled: bool = True):
         self.user_id = user_id
         self.other_lang = other_lang
         self.websocket = websocket
         self.loop = loop
         self.headphone_index = headphone_index
         self.vbcable_index = vbcable_index
+        # Modo texto: quando False, não sintetiza/toca áudio (só mostra o texto
+        # traduzido na tela), o que elimina a latência e os problemas do TTS.
+        self.tts_enabled = tts_enabled
         # Só pausar o loopback durante o TTS em PT se a saída em PT cai no
         # mesmo dispositivo capturado pelo loopback (senão não há eco e a pausa
         # só descartaria áudio da outra pessoa, picotando a captura).
@@ -54,9 +59,13 @@ class RecordingSession:
         }
         self.transcriptions.append(entry)
         self._send(entry)
+        if not self.tts_enabled:
+            return  # modo texto: só mostra na tela, sem áudio
         if speaker == "Outro":
             # PT no fone do usuário. Pausa o loopback só se houver risco de eco
             # (PT saindo no mesmo dispositivo que o loopback captura).
+            if self.headphone_index is None:
+                return
             if self.anti_echo:
                 self.audio.pause_loopback()
                 try:
@@ -67,7 +76,8 @@ class RecordingSession:
                 speak_to_device(translation, MY_LANG, self.headphone_index)
         else:
             # tradução no idioma da outra pessoa, injetada no VB-Cable
-            speak_to_device(translation, self.other_lang, self.vbcable_index)
+            if self.vbcable_index is not None:
+                speak_to_device(translation, self.other_lang, self.vbcable_index)
 
     def start(self):
         self.audio.start()

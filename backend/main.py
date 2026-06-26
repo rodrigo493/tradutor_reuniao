@@ -63,6 +63,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 async with get_pool().acquire() as conn:
                     row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                 other_lang = data.get("other_language", row["other_language"] if row else "en")
+                tts_enabled = bool(data.get("tts_enabled", False))
                 # Resolve nomes -> índices na hora: os índices do PyAudio mudam
                 # quando dispositivos conectam/desconectam, então não dá pra
                 # confiar num índice capturado no carregamento da página.
@@ -73,8 +74,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 mic_index = in_by_name.get(data.get("mic_name")) if data.get("mic_name") else None
                 loopback_index = in_by_name.get(data.get("loopback_name")) if data.get("loopback_name") else None
                 vb = find_vbcable(devs["outputs"])
-                if headphone_index is None or vb is None:
-                    await websocket.send_json({"type": "error", "message": "Dispositivo nao encontrado. Clique 'Atualizar dispositivos' e selecione novamente."})
+                if loopback_index is None:
+                    await websocket.send_json({"type": "error", "message": "Selecione o Loopback (voz da outra pessoa) e clique 'Atualizar dispositivos'."})
+                    continue
+                if tts_enabled and (headphone_index is None or vb is None):
+                    await websocket.send_json({"type": "error", "message": "Para áudio: selecione o fone e instale o VB-Cable, ou desligue 'Falar a tradução'."})
                     continue
                 # Anti-eco só é necessário se o áudio em PT sai no mesmo
                 # dispositivo que o loopback captura.
@@ -83,9 +87,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 anti_echo = bool(lb_name) and lb_name.replace(" [Loopback]", "") == hp_name
                 session = RecordingSession(
                     user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
-                    headphone_index=headphone_index, vbcable_index=vb["index"],
+                    headphone_index=headphone_index,
+                    vbcable_index=(vb["index"] if vb else None),
                     mic_index=mic_index, loopback_index=loopback_index,
-                    anti_echo=anti_echo,
+                    anti_echo=anti_echo, tts_enabled=tts_enabled,
                 )
                 session.start()
                 active_sessions[user_id] = session

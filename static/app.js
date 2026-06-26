@@ -215,8 +215,9 @@ function toggleAudio() {
     return;
   }
   if (!state.audioOn) {
-    if (vbcableIndex === null) {
-      alert('Instale o VB-Cable antes de iniciar (necessário para enviar sua voz traduzida).');
+    const ttsOn = document.getElementById('chk-tts').checked;
+    if (ttsOn && vbcableIndex === null) {
+      alert('Para falar a tradução em voz, instale o VB-Cable. Ou deixe desligado para usar só texto.');
       return;
     }
     state.ws.send(JSON.stringify({
@@ -225,6 +226,7 @@ function toggleAudio() {
       headphone_name: document.getElementById('sel-headphone').value,
       mic_name: document.getElementById('sel-mic').value,
       loopback_name: document.getElementById('sel-loopback').value,
+      tts_enabled: ttsOn,
     }));
     state.audioOn = true;
     const btn = document.getElementById("btn-audio");

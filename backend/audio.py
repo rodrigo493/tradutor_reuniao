@@ -10,7 +10,7 @@ from backend.audio_lock import PYAUDIO_LOCK
 
 CHUNK = 1024
 RATE = 16000
-CHUNK_BYTES = RATE * 2 * 2  # 2 segundos de áudio (menos latência)
+CHUNK_BYTES = int(RATE * 2 * 1.5)  # 1.5 segundos de áudio (menos latência)
 
 class AudioCapture:
     def __init__(self, mic_index: int | None = None, loopback_index: int | None = None):
