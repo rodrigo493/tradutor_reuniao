@@ -52,21 +52,34 @@ class AudioCapture:
         self._discard_until = time.monotonic() + 0.4
 
     def _capture_mic(self):
+        import numpy as np
         pa = None
         try:
             with PYAUDIO_LOCK:
                 pa = pyaudio.PyAudio()
-                stream = pa.open(format=pyaudio.paInt16, channels=1, rate=RATE,
-                                 input=True, frames_per_buffer=CHUNK,
-                                 input_device_index=self.mic_index)
-            print("[Audio] Microfone iniciado")
-            count = 0
+                if self.mic_index is not None:
+                    device = pa.get_device_info_by_index(self.mic_index)
+                else:
+                    device = pa.get_default_input_device_info()
+                native_rate = int(device["defaultSampleRate"])
+                native_channels = max(1, int(device["maxInputChannels"]))
+                native_chunk = int(CHUNK * native_rate / RATE)
+                stream = pa.open(format=pyaudio.paInt16, channels=native_channels,
+                                 rate=native_rate, input=True,
+                                 input_device_index=device["index"],
+                                 frames_per_buffer=native_chunk)
+            print(f"[Audio] Microfone iniciado ({native_rate}Hz {native_channels}ch)")
+            ratio = RATE / native_rate
             while self._running:
-                data = stream.read(CHUNK, exception_on_overflow=False)
-                self.mic_queue.put(data)
-                count += 1
-                if count % 50 == 0:
-                    print(f"[Audio] Mic: {count} chunks capturados")
+                raw = stream.read(native_chunk, exception_on_overflow=False)
+                arr = np.frombuffer(raw, dtype=np.int16)
+                if native_channels > 1:
+                    arr = arr.reshape(-1, native_channels).mean(axis=1).astype(np.int16)
+                if native_rate != RATE:
+                    n_out = max(1, int(len(arr) * ratio))
+                    indices = np.linspace(0, len(arr) - 1, n_out)
+                    arr = np.interp(indices, np.arange(len(arr)), arr).astype(np.int16)
+                self.mic_queue.put(arr.tobytes())
             stream.stop_stream()
             stream.close()
         except Exception as e:

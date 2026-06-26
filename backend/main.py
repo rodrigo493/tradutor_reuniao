@@ -79,10 +79,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 if headphone_index is None or vb is None:
                     await websocket.send_json({"type": "error", "message": "Dispositivo nao encontrado. Clique 'Atualizar dispositivos' e selecione novamente."})
                     continue
+                # Anti-eco só é necessário se o áudio em PT sai no mesmo
+                # dispositivo que o loopback captura.
+                hp_name = data.get("headphone_name") or ""
+                lb_name = data.get("loopback_name") or ""
+                anti_echo = bool(lb_name) and lb_name.replace(" [Loopback]", "") == hp_name
                 session = RecordingSession(
                     user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
                     headphone_index=headphone_index, vbcable_index=vb["index"],
                     mic_index=mic_index, loopback_index=loopback_index,
+                    anti_echo=anti_echo,
                 )
                 session.start()
                 active_sessions[user_id] = session

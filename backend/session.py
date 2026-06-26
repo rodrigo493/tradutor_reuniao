@@ -16,13 +16,18 @@ class RecordingSession:
                  loop: Optional[asyncio.AbstractEventLoop],
                  headphone_index: int, vbcable_index: int,
                  mic_index: Optional[int] = None,
-                 loopback_index: Optional[int] = None):
+                 loopback_index: Optional[int] = None,
+                 anti_echo: bool = True):
         self.user_id = user_id
         self.other_lang = other_lang
         self.websocket = websocket
         self.loop = loop
         self.headphone_index = headphone_index
         self.vbcable_index = vbcable_index
+        # Só pausar o loopback durante o TTS em PT se a saída em PT cai no
+        # mesmo dispositivo capturado pelo loopback (senão não há eco e a pausa
+        # só descartaria áudio da outra pessoa, picotando a captura).
+        self.anti_echo = anti_echo
         self.audio = AudioCapture(mic_index=mic_index, loopback_index=loopback_index)
         self.transcriptions: list[dict] = []
         self.started_at = datetime.datetime.now()
@@ -47,12 +52,16 @@ class RecordingSession:
         self.transcriptions.append(entry)
         self._send(entry)
         if speaker == "Outro":
-            # PT no fone, pausando o loopback para não capturar o próprio TTS
-            self.audio.pause_loopback()
-            try:
+            # PT no fone do usuário. Pausa o loopback só se houver risco de eco
+            # (PT saindo no mesmo dispositivo que o loopback captura).
+            if self.anti_echo:
+                self.audio.pause_loopback()
+                try:
+                    speak_to_device(translation, MY_LANG, self.headphone_index)
+                finally:
+                    self.audio.resume_loopback()
+            else:
                 speak_to_device(translation, MY_LANG, self.headphone_index)
-            finally:
-                self.audio.resume_loopback()
         else:
             # tradução no idioma da outra pessoa, injetada no VB-Cable
             speak_to_device(translation, self.other_lang, self.vbcable_index)
