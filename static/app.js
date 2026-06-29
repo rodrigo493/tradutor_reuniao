@@ -93,10 +93,9 @@ async function loadUser() {
   if (!res.ok) { logout(); return; }
   state.user = await res.json();
   document.getElementById("user-name").textContent = state.user.name;
-  const myLang = document.getElementById("my-lang");
-  const otherLang = document.getElementById("other-lang");
-  if (myLang) myLang.value = state.user.my_language || "pt";
-  if (otherLang) otherLang.value = state.user.other_language || "en";
+  // Pré-seleciona o idioma do usuário no seletor da tela de gravação.
+  const myLangSel = document.getElementById("sel-my-lang");
+  if (myLangSel) myLangSel.value = state.user.my_language || "pt";
   showScreen("waiting");
 }
 
@@ -196,11 +195,7 @@ async function startRecording() {
     return;
   }
 
-  // Espelha o idioma escolhido na tela de espera (#my-lang) no seletor da
-  // tela de gravação (#sel-my-lang), default pt.
   const myLangSel = document.getElementById("sel-my-lang");
-  const waitingMyLang = document.getElementById("my-lang");
-  if (myLangSel && waitingMyLang && waitingMyLang.value) myLangSel.value = waitingMyLang.value;
   const myLang = myLangSel ? myLangSel.value : "pt";
   document.getElementById("langs-display").textContent = `🌐 auto → ${myLang}`;
   document.getElementById("live-caption").textContent = "Aguardando fala...";

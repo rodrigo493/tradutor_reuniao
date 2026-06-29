@@ -90,33 +90,6 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">IDIOMAS</p>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="flex:1">
-            <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:4px">MEU IDIOMA</label>
-            <select id="my-lang" class="input-group" style="background:var(--bg-panel);border:1px solid #2a2a3e;border-radius:6px;padding:8px;color:white;width:100%">
-              <option value="pt">🇧🇷 Português</option>
-              <option value="en">🇺🇸 Inglês</option>
-              <option value="es">🇪🇸 Espanhol</option>
-              <option value="fr">🇫🇷 Francês</option>
-              <option value="de">🇩🇪 Alemão</option>
-            </select>
-          </div>
-          <span style="font-size:20px;color:var(--purple);padding-top:16px">⇄</span>
-          <div style="flex:1">
-            <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:4px">IDIOMA DA REUNIÃO</label>
-            <select id="other-lang" style="background:var(--bg-panel);border:1px solid #2a2a3e;border-radius:6px;padding:8px;color:white;width:100%">
-              <option value="en">🇺🇸 Inglês</option>
-              <option value="pt">🇧🇷 Português</option>
-              <option value="es">🇪🇸 Espanhol</option>
-              <option value="fr">🇫🇷 Francês</option>
-              <option value="de">🇩🇪 Alemão</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px" onclick="startRecording()">
         ▶ Iniciar manualmente
       </button>
@@ -140,7 +113,7 @@
 
     <section id="device-config" class="device-config">
       <button type="button" class="btn btn-outline" style="align-self:flex-start;padding:4px 10px;font-size:12px" onclick="loadDevices()">🔄 Atualizar dispositivos</button>
-      <label>Seu fone (saída em PT):
+      <label>Seu fone (tradução falada):
         <select id="sel-headphone"></select>
       </label>
       <label>Microfone (sua voz):
@@ -203,6 +176,6 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=7"></script>
+<script src="/static/app.js?v=8"></script>
 </body>
 </html>
