@@ -2,7 +2,7 @@ import concurrent.futures
 import os
 import time
 import threading
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 from faster_whisper import WhisperModel
 from deep_translator import GoogleTranslator
 from backend.audio import save_audio_chunk, CHUNK_BYTES
@@ -40,14 +40,23 @@ def translate_text(text: str, source: str, target: str) -> str:
         return text
 
 
+# Confiança mínima da detecção de idioma para "aprender" o idioma do outro
+# lado. Chunks curtos/silêncio às vezes detectam idiomas exóticos com
+# probabilidade baixa; ignoramos esses para não poluir o alvo de tradução.
+MIN_DETECT_CONFIDENCE = 0.6
+
+TargetLang = Union[str, Callable[[], str]]
+
+
 def transcribe_and_translate(
     audio_bytes: bytes,
     source_lang: str,
-    target_lang: str,
+    target_lang: TargetLang,
     speaker: str,
     on_result: Callable[[str, str, str, str], None],
     detect: bool = False,
     drop_langs: tuple = (),
+    on_detected: Optional[Callable[[str, float], None]] = None,
 ) -> None:
     print(f"[Transcriber] {len(audio_bytes)} bytes speaker={speaker} detect={detect}")
     path = save_audio_chunk(audio_bytes)
@@ -56,15 +65,21 @@ def transcribe_and_translate(
         lang_arg = None if detect else source_lang
         segments, info = model.transcribe(path, language=lang_arg)
         detected = getattr(info, "language", source_lang) or source_lang
+        confidence = float(getattr(info, "language_probability", 1.0) or 0.0)
         if detected in drop_langs:
             print(f"[Transcriber] descartado (idioma {detected} em drop_langs)")
             return
         original = " ".join(s.text for s in segments).strip()
-        print(f"[Transcriber] [{detected}] '{original}'")
+        print(f"[Transcriber] [{detected} p={confidence:.2f}] '{original}'")
         if not original:
             return
+        # Aprende o idioma detectado (ex.: idioma do outro lado da reunião) só
+        # quando a detecção é confiável.
+        if detect and on_detected and confidence >= MIN_DETECT_CONFIDENCE:
+            on_detected(detected, confidence)
         effective_source = detected if detect else source_lang
-        translation = translate_text(original, effective_source, target_lang)
+        target = target_lang() if callable(target_lang) else target_lang
+        translation = translate_text(original, effective_source, target)
         on_result(speaker, original, translation, detected)
     except Exception as e:
         print(f"[Transcriber] ERRO: {e}")
@@ -78,9 +93,10 @@ def transcribe_and_translate(
 class AudioWorker:
     """Consome fila de chunks de áudio e aciona transcrição em threads."""
 
-    def __init__(self, queue, source_lang: str, target_lang: str,
+    def __init__(self, queue, source_lang: str, target_lang: TargetLang,
                  speaker: str, on_result: Callable,
-                 detect: bool = False, drop_langs: tuple = ()):
+                 detect: bool = False, drop_langs: tuple = (),
+                 on_detected: Optional[Callable[[str, float], None]] = None):
         self.queue = queue
         self.source_lang = source_lang
         self.target_lang = target_lang
@@ -88,6 +104,7 @@ class AudioWorker:
         self.on_result = on_result
         self.detect = detect
         self.drop_langs = drop_langs
+        self.on_detected = on_detected
         self._thread: Optional[threading.Thread] = None
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._inflight: Optional[concurrent.futures.Future] = None
@@ -113,7 +130,7 @@ class AudioWorker:
                 self._inflight = self._executor.submit(
                     transcribe_and_translate, data, self.source_lang,
                     self.target_lang, self.speaker, self.on_result,
-                    self.detect, self.drop_langs,
+                    self.detect, self.drop_langs, self.on_detected,
                 )
         # Ao parar, cancela qualquer tarefa ainda na fila.
         self._executor.shutdown(wait=False, cancel_futures=True)

@@ -35,3 +35,23 @@ def test_outbound_routes_to_vbcable():
                lambda text, lang, idx: spoken.append((text, lang, idx))):
         s._handle_result("Você", "Olá", "Hello", "pt")
     assert spoken == [("Hello", "en", 7)]  # tradução EN no VB-Cable
+
+
+def test_learn_other_lang_updates_outbound_target():
+    # other_lang começa como palpite e é atualizado por auto-detecção do loopback
+    s = _make_session()  # other_lang inicial = "en"
+    s._learn_other_lang("es", 0.9)
+    assert s.other_lang == "es"
+    spoken = []
+    s._send = lambda entry: None
+    with patch("backend.session.speak_to_device",
+               lambda text, lang, idx: spoken.append((text, lang, idx))):
+        s._handle_result("Você", "Olá", "Hola", "pt")
+    assert spoken == [("Hola", "es", 7)]  # agora sai em ES (idioma aprendido)
+
+
+def test_learn_other_lang_ignores_my_own_language():
+    # Detecções no meu idioma (eco) não viram "idioma do outro"
+    s = _make_session()  # my_lang default = "pt", other_lang = "en"
+    s._learn_other_lang("pt", 0.99)
+    assert s.other_lang == "en"  # inalterado

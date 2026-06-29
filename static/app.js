@@ -196,8 +196,13 @@ async function startRecording() {
     return;
   }
 
-  const otherLang = document.getElementById("sel-other-lang").value;
-  document.getElementById("langs-display").textContent = `pt ↔ ${otherLang}`;
+  // Espelha o idioma escolhido na tela de espera (#my-lang) no seletor da
+  // tela de gravação (#sel-my-lang), default pt.
+  const myLangSel = document.getElementById("sel-my-lang");
+  const waitingMyLang = document.getElementById("my-lang");
+  if (myLangSel && waitingMyLang && waitingMyLang.value) myLangSel.value = waitingMyLang.value;
+  const myLang = myLangSel ? myLangSel.value : "pt";
+  document.getElementById("langs-display").textContent = `🌐 auto → ${myLang}`;
   document.getElementById("live-caption").textContent = "Aguardando fala...";
   document.getElementById("live-translation").textContent = "";
   document.getElementById("col-other").innerHTML = "";
@@ -220,9 +225,10 @@ function toggleAudio() {
       alert('Para falar a tradução em voz, instale o VB-Cable. Ou deixe desligado para usar só texto.');
       return;
     }
+    const myLangSel = document.getElementById('sel-my-lang');
     state.ws.send(JSON.stringify({
       action: 'start',
-      other_language: document.getElementById('sel-other-lang').value,
+      my_language: myLangSel ? myLangSel.value : 'pt',
       headphone_name: document.getElementById('sel-headphone').value,
       mic_name: document.getElementById('sel-mic').value,
       loopback_name: document.getElementById('sel-loopback').value,

@@ -62,7 +62,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             if data.get("action") == "start":
                 async with get_pool().acquire() as conn:
                     row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
-                other_lang = data.get("other_language", row["other_language"] if row else "en")
+                # Meu idioma = alvo da tradução (escolhido na tela). O idioma do
+                # outro lado é só um palpite inicial; será auto-detectado.
+                my_lang = data.get("my_language") or (row["my_language"] if row else None) or "pt"
+                other_lang = data.get("other_language") or (row["other_language"] if row else None) or "en"
                 tts_enabled = bool(data.get("tts_enabled", False))
                 # Resolve nomes -> índices na hora: os índices do PyAudio mudam
                 # quando dispositivos conectam/desconectam, então não dá pra
@@ -87,6 +90,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 anti_echo = bool(lb_name) and lb_name.replace(" [Loopback]", "") == hp_name
                 session = RecordingSession(
                     user_id=user_id, other_lang=other_lang, websocket=websocket, loop=loop,
+                    my_lang=my_lang,
                     headphone_index=headphone_index,
                     vbcable_index=(vb["index"] if vb else None),
                     mic_index=mic_index, loopback_index=loopback_index,
